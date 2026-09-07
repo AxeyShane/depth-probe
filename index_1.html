@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Depth Sensor Probe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --parchment: #f6f0e2;
+    --panel: #efe4cd;
+    --ink: #2b2013;
+    --ink-soft: #6b5c46;
+    --brass: #8a5a26;
+    --brass-strong: #6e4620;
+    --on-accent: #f8f2e4;
+    --specimen-blue: #2c4a6b;
+    --line: #d9cbac;
+    --good: #3f6b3f;
+    --warn: #a6741f;
+    --bad: #9a3f34;
+    --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --parchment: #1a1510;
+      --panel: #241d15;
+      --ink: #ece1cb;
+      --ink-soft: #b3a186;
+      --brass: #d3a15a;
+      --brass-strong: #e8b876;
+      --on-accent: #1a1510;
+      --specimen-blue: #8db2d1;
+      --line: #3c3222;
+      --good: #7fb37f;
+      --warn: #d3a15a;
+      --bad: #d98a7c;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --parchment: #1a1510;
+    --panel: #241d15;
+    --ink: #ece1cb;
+    --ink-soft: #b3a186;
+    --brass: #d3a15a;
+    --brass-strong: #e8b876;
+    --on-accent: #1a1510;
+    --specimen-blue: #8db2d1;
+    --line: #3c3222;
+    --good: #7fb37f;
+    --warn: #d3a15a;
+    --bad: #d98a7c;
+  }
+
+  * { box-sizing: border-box; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  body {
+    background: var(--parchment);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+  }
+
+  :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  .page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 2.25rem 1.25rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .eyebrow {
+    font: 600 0.72rem/1.4 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--brass);
+    margin: 0 0 0.5rem;
+  }
+
+  h1 {
+    font: 700 1.9rem/1.15 var(--font-sans);
+    letter-spacing: -0.01em;
+    margin: 0 0 0.6rem;
+    text-wrap: balance;
+    color: var(--ink);
+  }
+
+  .lede {
+    font-size: 0.98rem;
+    color: var(--ink-soft);
+    max-width: 46ch;
+    margin: 0 0 1.1rem;
+  }
+
+  .specimen-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+    margin: 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .specimen-meta dt {
+    font: 600 0.66rem/1.4 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-soft);
+    margin: 0 0 0.15rem;
+  }
+  .specimen-meta dd {
+    margin: 0;
+    font: 500 0.82rem/1.4 var(--font-mono);
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  .panel {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 1.3rem 1.4rem;
+  }
+
+  .tag {
+    font: 600 0.78rem/1.4 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--brass);
+    margin: 0 0 1rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .tag-sub {
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--ink-soft);
+    font-weight: 400;
+  }
+
+  .verdict-panel {
+    border-top-width: 3px;
+    border-top-style: solid;
+    border-top-color: var(--line);
+  }
+  .verdict-good { border-top-color: var(--good); }
+  .verdict-warn { border-top-color: var(--warn); }
+  .verdict-bad { border-top-color: var(--bad); }
+  .verdict-muted { border-top-color: var(--ink-soft); }
+
+  .verdict-headline {
+    font: 600 1.12rem/1.35 var(--font-sans);
+    margin: 0 0 0.4rem;
+    text-wrap: balance;
+  }
+  .verdict-detail {
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  .register { list-style: none; margin: 0; padding: 0; }
+  .register li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    column-gap: 0.75rem;
+    row-gap: 0.25rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .register li:last-child { border-bottom: none; padding-bottom: 0; }
+  .row-label {
+    font: 600 0.88rem/1.3 var(--font-sans);
+    color: var(--ink);
+  }
+  .row-note {
+    grid-column: 1 / -1;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.16rem 0.55rem;
+    font: 600 0.68rem/1.5 var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .pill-good { color: var(--good); border-color: var(--good); }
+  .pill-bad { color: var(--bad); border-color: var(--bad); }
+  .pill-warn { color: var(--warn); border-color: var(--warn); }
+  .pill-muted { color: var(--ink-soft); border-color: var(--line); }
+
+  .note { font-size: 0.88rem; color: var(--ink-soft); margin: 0 0 1rem; max-width: 52ch; }
+
+  .btn-brass {
+    font: 600 0.88rem/1.3 var(--font-sans);
+    color: var(--on-accent);
+    background: var(--brass);
+    border: 1px solid var(--brass);
+    padding: 0.65rem 1.1rem;
+    cursor: pointer;
+  }
+  .btn-brass:hover:not(:disabled) { background: var(--brass-strong); border-color: var(--brass-strong); }
+  .btn-brass:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .error-text {
+    margin-top: 0.85rem;
+    font-size: 0.85rem;
+    color: var(--bad);
+  }
+
+  .log-list { display: flex; flex-direction: column; }
+  .log-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .log-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .log-main { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+  .log-device { font: 500 0.85rem/1.3 var(--font-sans); color: var(--ink); }
+  .log-meta {
+    display: flex;
+    gap: 0.85rem;
+    font: 400 0.76rem/1.4 var(--font-mono);
+    color: var(--ink-soft);
+  }
+  .muted { color: var(--ink-soft); font-size: 0.88rem; margin: 0; }
+
+  .foot {
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+  }
+  .foot a { color: var(--specimen-blue); }
+
+  .ar-overlay {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    padding: 1rem 1.25rem calc(1rem + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .ar-readout-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font: 500 0.82rem/1.4 var(--font-sans);
+    color: var(--ink-soft);
+  }
+  .ar-readout-row strong {
+    font: 600 1rem/1.3 var(--font-mono);
+    color: var(--specimen-blue);
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header>
+    <p class="eyebrow">Snugbins &middot; capture pipeline</p>
+    <h1>Depth Sensor Probe</h1>
+    <p class="lede">Checks whether this device can hand back real-world metric depth through the browser — the thing that would let a customer skip placing a reference object in frame.</p>
+    <dl class="specimen-meta">
+      <div>
+        <dt>Tested on</dt>
+        <dd id="deviceLabelLine">detecting&hellip;</dd>
+      </div>
+      <div>
+        <dt>At</dt>
+        <dd id="tsLine">&mdash;</dd>
+      </div>
+    </dl>
+    <p class="note" style="margin-top:0.6rem;">Chrome deliberately reports a generic &ldquo;Android 10&rdquo; and device model &ldquo;K&rdquo; in its default user-agent string, on every device, for privacy — real OS version and model come from Client Hints instead when the browser supports it. The label above uses Client Hints when available; without them (Safari never provides them) it falls back to a best-effort guess and says so.</p>
+  </header>
+
+  <section class="panel verdict-panel verdict-muted" id="verdictPanel">
+    <p class="verdict-headline">Checking this device&hellip;</p>
+    <p class="verdict-detail">Running the static WebXR checks now.</p>
+  </section>
+
+  <section class="panel">
+    <h2 class="tag">Capability register</h2>
+    <ul class="register" id="registerList">
+      <li data-row="webxr">
+        <span class="row-label">WebXR API</span>
+        <span class="pill pill-muted">Checking</span>
+        <span class="row-note">&nbsp;</span>
+      </li>
+      <li data-row="ar-session">
+        <span class="row-label">Immersive AR session</span>
+        <span class="pill pill-muted">Checking</span>
+        <span class="row-note">&nbsp;</span>
+      </li>
+      <li data-row="depth">
+        <span class="row-label">Depth sensing</span>
+        <span class="pill pill-muted">&mdash;</span>
+        <span class="row-note">&nbsp;</span>
+      </li>
+      <li data-row="hit-test">
+        <span class="row-label">Hit-test</span>
+        <span class="pill pill-muted">&mdash;</span>
+        <span class="row-note">&nbsp;</span>
+      </li>
+      <li data-row="policy">
+        <span class="row-label">Permissions Policy (camera / xr)</span>
+        <span class="pill pill-muted">Checking</span>
+        <span class="row-note">&nbsp;</span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2 class="tag">Live session test</h2>
+    <p class="note">Only a real AR session tells you whether depth data actually arrives — the static check above only confirms the API exists. This opens the camera and reads one depth sample per frame at the center of the view.</p>
+    <button class="btn-brass" id="runTestBtn" disabled>Run live sensor test</button>
+    <p class="error-text" id="testError" hidden></p>
+  </section>
+
+  <section class="panel">
+    <h2 class="tag">Test log <span class="tag-sub">&mdash; every device that's opened this page</span></h2>
+    <div class="log-list" id="logList">
+      <p class="muted">No runs recorded yet.</p>
+    </div>
+  </section>
+
+  <p class="foot">Depth values are read via <code>XRFrame.getDepthInformation()</code> at the center of the camera view, in meters, per the <a href="https://www.w3.org/TR/webxr-depth-sensing-1/" target="_blank" rel="noopener">WebXR Depth Sensing module</a>. A confirmed reading here means real-world scale without a physical reference object; no reading means keep the reference-object flow for this device.</p>
+</div>
+
+<div class="ar-overlay" id="arOverlay" hidden>
+  <div class="ar-readout-row">
+    <span>Center-frame depth</span>
+    <strong id="arDepthValue">no data</strong>
+  </div>
+  <div class="ar-readout-row">
+    <span>Hit-test</span>
+    <strong id="arHitValue">no data</strong>
+  </div>
+  <button class="btn-brass" id="endTestBtn">End test</button>
+</div>
+
+<script>
+(function () {
+  const ua = navigator.userAgent;
+
+  function deviceLabel(uaStr) {
+    let os = 'Unknown device';
+    if (/iPhone/.test(uaStr)) os = 'iPhone';
+    else if (/iPad/.test(uaStr)) os = 'iPad';
+    else if (/Android/.test(uaStr)) {
+      const m = uaStr.match(/Android\s([\d.]+)/);
+      os = 'Android' + (m ? ' ' + m[1] : '');
+    } else if (/Macintosh/.test(uaStr)) os = 'Mac';
+    else if (/Windows/.test(uaStr)) os = 'Windows';
+
+    let browser = 'unknown browser';
+    if (/CriOS/.test(uaStr)) browser = 'Chrome (iOS)';
+    else if (/FxiOS/.test(uaStr)) browser = 'Firefox (iOS)';
+    else if (/EdgA|EdgiOS|Edg\//.test(uaStr)) browser = 'Edge';
+    else if (/SamsungBrowser/.test(uaStr)) browser = 'Samsung Internet';
+    else if (/Chrome\//.test(uaStr) && !/Chromium/.test(uaStr)) browser = 'Chrome';
+    else if (/Safari/.test(uaStr) && /Version\//.test(uaStr) && !/Chrome/.test(uaStr)) browser = 'Safari';
+    else if (/Firefox\//.test(uaStr)) browser = 'Firefox';
+    return os + ' · ' + browser;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  const els = {
+    verdictPanel: document.getElementById('verdictPanel'),
+    deviceLabelLine: document.getElementById('deviceLabelLine'),
+    tsLine: document.getElementById('tsLine'),
+    runBtn: document.getElementById('runTestBtn'),
+    errorText: document.getElementById('testError'),
+    logList: document.getElementById('logList'),
+    arOverlay: document.getElementById('arOverlay'),
+    arDepthValue: document.getElementById('arDepthValue'),
+    arHitValue: document.getElementById('arHitValue'),
+    endBtn: document.getElementById('endTestBtn'),
+  };
+
+  let label = deviceLabel(ua) + ' (unverified — see Client Hints)';
+  els.deviceLabelLine.textContent = label;
+  els.tsLine.textContent = new Date().toLocaleString();
+
+  async function refineDeviceLabel() {
+    if (!(navigator.userAgentData && navigator.userAgentData.getHighEntropyValues)) return;
+    try {
+      const hints = await navigator.userAgentData.getHighEntropyValues(['model', 'platformVersion', 'platform']);
+      const platformPart = [hints.platform, hints.platformVersion].filter(Boolean).join(' ');
+      const browserPart = deviceLabel(ua).split('·').pop().trim();
+      if (hints.model || platformPart) {
+        label = [platformPart, hints.model, browserPart].filter(Boolean).join(' · ');
+        els.deviceLabelLine.textContent = label;
+      }
+    } catch (e) { /* Client Hints denied or unavailable — keep the UA guess */ }
+  }
+
+  function setRow(id, pillLabel, tone, note) {
+    const row = document.querySelector('[data-row="' + id + '"]');
+    if (!row) return;
+    const pill = row.querySelector('.pill');
+    pill.textContent = pillLabel;
+    pill.className = 'pill pill-' + tone;
+    row.querySelector('.row-note').textContent = note;
+  }
+
+  function setVerdict(tone, headline, detail) {
+    els.verdictPanel.className = 'panel verdict-panel verdict-' + tone;
+    els.verdictPanel.querySelector('.verdict-headline').textContent = headline;
+    els.verdictPanel.querySelector('.verdict-detail').textContent = detail;
+  }
+
+  let db = null;
+  let runDocRef = null;
+
+  function renderLog(snap) {
+    if (snap.empty) {
+      els.logList.innerHTML = '<p class="muted">No runs recorded yet.</p>';
+      return;
+    }
+    els.logList.innerHTML = snap.docs.map(function (d) {
+      const r = d.data() || {};
+      let tone = 'muted', text = 'No WebXR';
+      if (r.verdict === 'depth-confirmed') { tone = 'good'; text = 'Depth confirmed'; }
+      else if (r.verdict === 'ar-only') { tone = 'bad'; text = 'AR, no depth'; }
+      else if (r.verdict === 'session-failed') { tone = 'bad'; text = 'Session failed'; }
+      else if (r.verdict === 'untested') { tone = 'warn'; text = 'Untested'; }
+      else if (r.verdict === 'no-ar-session') { tone = 'muted'; text = 'No AR session'; }
+
+      const when = r.ts ? new Date(r.ts).toLocaleString() : '';
+      let detail = '';
+      if (r.depthConfirmed && typeof r.sampleDepthMeters === 'number') {
+        detail = 'center ≈ ' + r.sampleDepthMeters.toFixed(2) + ' m';
+        if (r.sessionConfig) detail += ' · ' + r.sessionConfig;
+      } else if (r.hitTestConfirmed) {
+        detail = 'hit-test only';
+      } else if (r.verdict === 'ar-only' && r.sessionConfig) {
+        detail = r.sessionConfig;
+      } else if (r.verdict === 'session-failed' && r.sessionError) {
+        detail = r.sessionError;
+      }
+
+      return '<div class="log-row">' +
+        '<div class="log-main"><span class="pill pill-' + tone + '">' + text + '</span>' +
+        '<span class="log-device">' + escapeHtml(r.deviceLabel || 'Unknown device') + '</span></div>' +
+        '<div class="log-meta"><span>' + escapeHtml(when) + '</span>' +
+        (detail ? '<span>' + escapeHtml(detail) + '</span>' : '') +
+        '</div></div>';
+    }).join('');
+  }
+
+  function checkPermissionsPolicy() {
+    // Permissions Policy is set by the HOSTING SERVER's response headers —
+    // a page's own script cannot loosen it. If this host disallows
+    // camera/xr-spatial-tracking for published pages, requestSession()
+    // will fail no matter what the call looks like, on every device.
+    try {
+      const pp = document.permissionsPolicy || document.featurePolicy;
+      if (!pp || !pp.allowsFeature) return { supported: false, xr: 'unknown', camera: 'unknown' };
+      const xr = pp.allowsFeature('xr-spatial-tracking');
+      const camera = pp.allowsFeature('camera');
+      return { supported: true, xr: xr, camera: camera };
+    } catch (e) {
+      return { supported: false, xr: 'error', camera: 'error', error: String(e && e.message || e) };
+    }
+  }
+
+  async function init() {
+    await refineDeviceLabel();
+
+    const policy = checkPermissionsPolicy();
+    if (!policy.supported) {
+      setRow('policy', 'Unknown', 'muted', 'This browser doesn’t expose document.permissionsPolicy — can’t check directly. Not evidence either way.');
+    } else if (policy.xr === false || policy.camera === false) {
+      setRow('policy', 'Blocked', 'bad',
+        'This page’s own host disallows ' + (policy.xr === false ? '"xr-spatial-tracking"' : '"camera"') + ' via Permissions Policy — no session request from this page can ever succeed, regardless of the call shape. This is a hosting-platform restriction, not a device or code issue.');
+    } else {
+      setRow('policy', 'Allowed', 'good', 'Permissions Policy allows camera/xr-spatial-tracking on this page — not the blocker.');
+    }
+
+    const hasXR = 'xr' in navigator;
+    setRow('webxr', hasXR ? 'Present' : 'Absent', hasXR ? 'good' : 'bad',
+      hasXR ? 'navigator.xr exists in this browser.' : 'This browser does not expose the WebXR API at all — true of every version of iOS Safari as of 2026.');
+
+    let arSupported = false;
+    if (hasXR) {
+      try { arSupported = await navigator.xr.isSessionSupported('immersive-ar'); }
+      catch (e) { arSupported = false; }
+    }
+    setRow('ar-session',
+      !hasXR ? '—' : (arSupported ? 'Supported' : 'Reports unsupported'),
+      !hasXR ? 'muted' : (arSupported ? 'good' : 'warn'),
+      !hasXR ? 'Requires the WebXR API first.' : (arSupported ? 'This device/browser can open a camera-passthrough AR session.' : 'isSessionSupported() says no, but this check is known to under-report on some Android/Chrome/ARCore combinations — it can be wrong even when a real session works. Try the live test below regardless; it’s the real answer.'));
+
+    setRow('depth', hasXR && arSupported ? 'Run test below' : '—', 'muted',
+      hasXR && arSupported ? 'Only knowable by actually requesting the feature.' : 'Requires an AR session first.');
+    setRow('hit-test', hasXR && arSupported ? 'Run test below' : '—', 'muted',
+      hasXR && arSupported ? 'Only knowable by actually requesting the feature.' : 'Requires an AR session first.');
+
+    let verdictTag = 'no-webxr';
+    if (!hasXR) {
+      setVerdict('muted', 'No native depth path on this device',
+        'This browser doesn’t implement WebXR at all. Keep the reference-object capture flow for these customers, or route them through a native app / App Clip instead.');
+      verdictTag = 'no-webxr';
+    } else if (!arSupported) {
+      setVerdict('warn', 'Static check says no — untrusted, try the live test',
+        'isSessionSupported() reports this device can’t open an AR session, but that check can be wrong (it has under-reported on real, working devices before). Tap "Run live sensor test" below to find out what actually happens — don’t take this row as final.');
+      els.runBtn.disabled = false;
+      verdictTag = 'untested';
+    } else {
+      setVerdict('warn', 'AR session available — depth not yet confirmed',
+        'Tap "Run live sensor test" below to see whether real metric depth actually arrives on this device.');
+      els.runBtn.disabled = false;
+      verdictTag = 'untested';
+    }
+
+    try {
+      db = window.claude && window.claude.use ? await window.claude.use('db') : null;
+    } catch (e) { db = null; }
+
+    if (db) {
+      try {
+        runDocRef = await db.collection('runs').add({
+          ts: Date.now(),
+          userAgent: ua,
+          deviceLabel: label,
+          webxrPresent: hasXR,
+          arSessionSupported: arSupported,
+          depthConfirmed: false,
+          hitTestConfirmed: false,
+          verdict: verdictTag,
+          permissionsPolicy: policy,
+        });
+      } catch (e) { /* logging is best-effort */ }
+
+      db.collection('runs').orderBy('ts', 'desc').limit(20).onSnapshot(renderLog, function () {});
+    }
+  }
+
+  let session = null;
+  let running = false;
+  let seenDepth = false, seenHit = false;
+  let minDepth = Infinity, maxDepth = -Infinity, lastDepth = null;
+  let usedOverlay = false;
+  let usedConfigLabel = null;
+  let autoEndTimer = null;
+
+  // Some Chrome/ARCore builds have been observed rejecting ANY sessionInit
+  // object outright ("invalid requiredFeatures"), even an empty one —
+  // while a truly argument-less requestSession('immersive-ar') call (as
+  // the official immersive-web reference sample uses) succeeds on the
+  // exact same device. So the ladder runs richest-to-poorest, but the
+  // last rung is a real zero-argument call, distinct from passing {}.
+  const FEATURE_LADDER = [
+    { label: 'depth + hit-test + dom-overlay', features: ['depth-sensing', 'hit-test', 'dom-overlay'], depthConfig: true, overlay: true },
+    { label: 'depth + hit-test (no overlay)', features: ['depth-sensing', 'hit-test'], depthConfig: true, overlay: false },
+    { label: 'depth only', features: ['depth-sensing'], depthConfig: true, overlay: false },
+    { label: 'empty options object', features: [], depthConfig: false, overlay: false },
+    { label: 'no arguments (bare call)', bareCall: true, depthConfig: false, overlay: false },
+  ];
+
+  els.runBtn.addEventListener('click', startLiveTest);
+  els.endBtn.addEventListener('click', function () { if (session) session.end(); });
+
+  async function startLiveTest() {
+    els.errorText.hidden = true;
+    const attempts = [];
+    let chosen = null;
+
+    for (const cfg of FEATURE_LADDER) {
+      try {
+        if (cfg.bareCall) {
+          session = await navigator.xr.requestSession('immersive-ar');
+        } else {
+          const sessionInit = { optionalFeatures: cfg.features.slice() };
+          if (cfg.depthConfig) {
+            sessionInit.depthSensing = { usagePreference: ['cpu-optimized', 'gpu-optimized'], dataFormatPreference: ['luminance-alpha', 'float32'] };
+          }
+          if (cfg.overlay) {
+            sessionInit.domOverlay = { root: els.arOverlay };
+          }
+          session = await navigator.xr.requestSession('immersive-ar', sessionInit);
+        }
+        chosen = cfg;
+        break;
+      } catch (e) {
+        attempts.push(cfg.label + ': ' + (e && e.message || e));
+      }
+    }
+
+    if (!session) {
+      els.errorText.hidden = false;
+      els.errorText.textContent = 'Every configuration failed. ' + attempts.join(' | ');
+      if (db && runDocRef) {
+        runDocRef.update({
+          verdict: 'session-failed',
+          sessionError: attempts.join(' | '),
+        }).catch(function () {});
+      }
+      return;
+    }
+
+    if (attempts.length > 0) {
+      els.errorText.hidden = false;
+      els.errorText.textContent = 'Fell back to "' + chosen.label + '" after: ' + attempts.join(' | ');
+    }
+
+    usedConfigLabel = chosen.label;
+    usedOverlay = chosen.overlay;
+    running = true;
+    seenDepth = false; seenHit = false; minDepth = Infinity; maxDepth = -Infinity; lastDepth = null;
+    els.runBtn.disabled = true;
+
+    if (usedOverlay) {
+      els.arOverlay.hidden = false;
+    } else {
+      // No dom-overlay means our HTML never composites over the camera
+      // feed during the session — run blind for a few seconds, then end
+      // it automatically, since there's no on-screen button to tap.
+      autoEndTimer = setTimeout(function () { if (session) session.end(); }, 6000);
+    }
+
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl', { xrCompatible: true });
+    try { await gl.makeXRCompatible(); } catch (e) {}
+    session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+    const refSpace = await session.requestReferenceSpace('local');
+
+    let hitTestSource = null;
+    try {
+      const viewerSpace = await session.requestReferenceSpace('viewer');
+      hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+    } catch (e) { hitTestSource = null; }
+
+    session.addEventListener('end', onSessionEnd);
+
+    session.requestAnimationFrame(function onFrame(t, frame) {
+      if (!running) return;
+      const layer = session.renderState.baseLayer;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+      const pose = frame.getViewerPose(refSpace);
+      if (pose) {
+        for (const view of pose.views) {
+          if (frame.getDepthInformation) {
+            let depthInfo = null;
+            try { depthInfo = frame.getDepthInformation(view); } catch (e) { depthInfo = null; }
+            if (depthInfo) {
+              const meters = depthInfo.getDepthInMeters(0.5, 0.5);
+              if (Number.isFinite(meters) && meters > 0) {
+                seenDepth = true;
+                lastDepth = meters;
+                minDepth = Math.min(minDepth, meters);
+                maxDepth = Math.max(maxDepth, meters);
+              }
+            }
+          }
+        }
+      }
+      if (hitTestSource) {
+        const results = frame.getHitTestResults(hitTestSource);
+        if (results.length > 0) seenHit = true;
+      }
+
+      els.arDepthValue.textContent = lastDepth != null ? lastDepth.toFixed(2) + ' m' : (seenDepth ? '—' : 'no data');
+      els.arHitValue.textContent = seenHit ? 'active' : 'no data';
+
+      session.requestAnimationFrame(onFrame);
+    });
+  }
+
+  function onSessionEnd() {
+    running = false;
+    if (autoEndTimer) { clearTimeout(autoEndTimer); autoEndTimer = null; }
+    els.arOverlay.hidden = true;
+    els.runBtn.disabled = false;
+    session = null;
+
+    const depthConfirmed = seenDepth;
+    const hitTestConfirmed = seenHit;
+    const verdict = depthConfirmed ? 'depth-confirmed' : 'ar-only';
+    const configNote = ' (session config: ' + usedConfigLabel + (usedOverlay ? '' : ', ran blind ~6s, no overlay support') + ')';
+
+    setRow('depth', depthConfirmed ? 'Confirmed' : 'No data', depthConfirmed ? 'good' : 'bad',
+      (depthConfirmed
+        ? 'Live metric depth received (range ' + minDepth.toFixed(2) + '–' + maxDepth.toFixed(2) + ' m).'
+        : 'The session opened but no depth samples ever arrived — this device/browser doesn’t deliver depth data.') + configNote);
+    setRow('hit-test', hitTestConfirmed ? 'Confirmed' : 'No data', hitTestConfirmed ? 'good' : 'bad',
+      hitTestConfirmed ? 'Real-world surface hits were detected.' : 'No hit-test results arrived during the session.');
+
+    if (depthConfirmed) {
+      setVerdict('good', 'Metric depth confirmed on this device',
+        'Real-world depth is available here without any reference object — center-frame samples ranged ' + minDepth.toFixed(2) + '–' + maxDepth.toFixed(2) + ' m, using "' + usedConfigLabel + '".');
+    } else {
+      setVerdict('bad', 'AR works here, but no depth data',
+        'This device opens an AR session ("' + usedConfigLabel + '") but never delivered a depth sample — treat it like a non-WebXR device for scale purposes.');
+    }
+
+    if (db && runDocRef) {
+      runDocRef.update({
+        depthConfirmed: depthConfirmed,
+        hitTestConfirmed: hitTestConfirmed,
+        sampleDepthMeters: depthConfirmed ? lastDepth : null,
+        minDepthMeters: depthConfirmed ? minDepth : null,
+        maxDepthMeters: depthConfirmed ? maxDepth : null,
+        sessionConfig: usedConfigLabel,
+        usedOverlay: usedOverlay,
+        verdict: verdict,
+      }).catch(function () {});
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
