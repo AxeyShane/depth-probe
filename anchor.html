@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AR Reference Anchor Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --parchment: #f6f0e2;
+    --panel: #efe4cd;
+    --ink: #2b2013;
+    --ink-soft: #6b5c46;
+    --brass: #8a5a26;
+    --brass-strong: #6e4620;
+    --on-accent: #f8f2e4;
+    --specimen-blue: #2c4a6b;
+    --line: #d9cbac;
+    --good: #3f6b3f;
+    --warn: #a6741f;
+    --bad: #9a3f34;
+    --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--parchment);
+    color: var(--ink);
+    font-family: var(--font-sans);
+  }
+  #startScreen {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    padding: 28px 20px 40px;
+    max-width: 640px; margin: 0 auto;
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brass);
+    margin: 0 0 6px;
+  }
+  h1 { font-size: 26px; margin: 0 0 14px; line-height: 1.25; }
+  p { line-height: 1.55; color: var(--ink-soft); }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin: 16px 0;
+  }
+  .panel h2 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--brass-strong);
+    margin: 0 0 10px;
+  }
+  .panel ol, .panel ul { margin: 0; padding-left: 20px; color: var(--ink); }
+  .panel li { margin-bottom: 8px; line-height: 1.5; }
+  .panel li:last-child { margin-bottom: 0; }
+  button {
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    padding: 16px 20px;
+    cursor: pointer;
+    width: 100%;
+  }
+  .btn-primary { background: var(--brass); color: var(--on-accent); }
+  .btn-primary:disabled { background: var(--line); color: var(--ink-soft); cursor: not-allowed; }
+  .btn-secondary { background: transparent; color: var(--brass-strong); border: 1px solid var(--brass-strong); }
+  #staticNote {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-top: 6px;
+  }
+  #errorBox {
+    display: none;
+    background: #f7e7e2;
+    border: 1px solid var(--bad);
+    color: var(--bad);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    margin-top: 14px;
+    white-space: pre-wrap;
+  }
+
+  /* AR overlay */
+  #arOverlay {
+    display: none;
+    position: fixed; inset: 0;
+    pointer-events: none;
+    font-family: var(--font-sans);
+  }
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: max(14px, env(safe-area-inset-top)) 14px 14px;
+    background: linear-gradient(to bottom, rgba(20,15,8,0.72), rgba(20,15,8,0));
+    color: #f2e9d5;
+    pointer-events: none;
+  }
+  .hud-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .hud-row .k { color: #cbb98c; }
+  .hud-row .v { font-weight: 600; }
+  .v.good { color: #9fd39f; }
+  .v.warn { color: #e3c26a; }
+  .v.bad { color: #e39a8a; }
+  #hint {
+    position: absolute;
+    top: 96px; left: 14px; right: 14px;
+    color: #f2e9d5;
+    font-size: 13px;
+    line-height: 1.45;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    pointer-events: none;
+  }
+  #controls {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    padding: 14px 14px max(14px, env(safe-area-inset-bottom));
+    background: linear-gradient(to top, rgba(20,15,8,0.78), rgba(20,15,8,0));
+    display: flex; gap: 10px;
+    pointer-events: auto;
+  }
+  #controls button { flex: 1; }
+  #lockBtn { background: var(--brass); color: var(--on-accent); }
+  #lockBtn:disabled { background: rgba(217,203,172,0.4); color: rgba(43,32,19,0.5); }
+  #resetBtn { background: rgba(246,240,226,0.14); color: #f2e9d5; border: 1px solid rgba(246,240,226,0.4); }
+  #endBtn { background: rgba(154,63,52,0.85); color: #fff; flex: 0 0 auto; width: auto; padding-left: 18px; padding-right: 18px; }
+</style>
+</head>
+<body>
+
+<div id="startScreen">
+  <p class="eyebrow">Snugbins &middot; Capture pipeline</p>
+  <h1>AR Reference Anchor Test</h1>
+  <p>Tests whether a virtual reference object &mdash; rendered into the camera view and locked to a real-world surface via WebXR hit-test &mdash; actually stays put and sized correctly at the distance you'd capture a product from. No physical card needed for this test; you're watching whether the anchor itself is trustworthy.</p>
+
+  <div class="panel">
+    <h2>What you'll see</h2>
+    <ol>
+      <li>Point the phone at a table or flat surface. A wireframe rectangle sized to a standard card (85.60 &times; 53.98 mm) will appear where the surface is detected, updating live.</li>
+      <li>Tap <strong>Lock reference here</strong> once it looks stable. The rectangle then stays fixed at that world position &mdash; it no longer follows your aim.</li>
+      <li>Move the phone side to side and toward/away from it. A real anchor holds still against the real surface; if it slides, swims, or changes size as you move, the anchoring isn't reliable at that distance.</li>
+      <li>Start at arm's length (50&ndash;100 cm) where tracking is easiest, then slowly move closer to your actual product-capture distance and watch when (or if) it breaks down.</li>
+    </ol>
+  </div>
+
+  <div class="panel">
+    <h2>Why this matters</h2>
+    <p style="margin:0;">If the anchor holds steady and correctly sized at your real capture distance, a virtual reference object could work without a physical card. If it drifts or misjudges size at that distance &mdash; consistent with the depth and hit-test readings already measured on this device &mdash; that confirms the physical reference-object approach should stay the production path.</p>
+  </div>
+
+  <button id="startBtn" class="btn-primary">Start AR test</button>
+  <p id="staticNote"></p>
+  <div id="errorBox"></div>
+</div>
+
+<div id="arOverlay">
+  <div id="hud">
+    <div class="hud-row"><span class="k">SURFACE</span><span class="v" id="hudSurface">SEARCHING&hellip;</span></div>
+    <div class="hud-row"><span class="k">DISTANCE TO ANCHOR</span><span class="v" id="hudDistance">&mdash;</span></div>
+    <div class="hud-row"><span class="k">STATE</span><span class="v" id="hudState">live &mdash; following aim</span></div>
+  </div>
+  <div id="hint">Point at a flat surface. When the outline appears and holds steady, tap "Lock reference here" below.</div>
+  <div id="controls">
+    <button id="lockBtn" disabled>Lock reference here</button>
+    <button id="resetBtn" style="display:none;">Unlock &amp; re-search</button>
+    <button id="endBtn">End</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const CARD_W = 0.0856;   // ISO/IEC 7810 ID-1, meters
+  const CARD_D = 0.05398;
+  const hw = CARD_W / 2, hd = CARD_D / 2;
+
+  const startScreen = document.getElementById('startScreen');
+  const startBtn = document.getElementById('startBtn');
+  const staticNote = document.getElementById('staticNote');
+  const errorBox = document.getElementById('errorBox');
+  const arOverlay = document.getElementById('arOverlay');
+  const hudSurface = document.getElementById('hudSurface');
+  const hudDistance = document.getElementById('hudDistance');
+  const hudState = document.getElementById('hudState');
+  const hint = document.getElementById('hint');
+  const lockBtn = document.getElementById('lockBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const endBtn = document.getElementById('endBtn');
+
+  if (navigator.xr) {
+    navigator.xr.isSessionSupported('immersive-ar').then(function (supported) {
+      staticNote.textContent = supported
+        ? 'Static check: immersive-ar reports supported on this browser.'
+        : 'Static check says unsupported — but that check can be wrong. Try anyway.';
+    }).catch(function () {
+      staticNote.textContent = 'Static support check failed to run — try anyway, the live session is the real test.';
+    });
+  } else {
+    staticNote.textContent = 'navigator.xr is not present in this browser.';
+  }
+
+  let session = null, gl = null, refSpace = null, viewerSpace = null, hitTestSource = null;
+  let glProgram = null, aPosLoc = null, uMVPLoc = null, uColorLoc = null;
+  let fillBuf = null, outlineBuf = null, poleBuf = null;
+  let liveMatrix = null;      // current hit-test result, updated every frame while unlocked
+  let lockedMatrix = null;    // frozen anchor once user taps Lock
+  let hitFoundThisFrame = false;
+
+  startBtn.addEventListener('click', startAR);
+  endBtn.addEventListener('click', function () { if (session) session.end(); });
+  lockBtn.addEventListener('click', function () {
+    if (!liveMatrix) return;
+    lockedMatrix = liveMatrix.slice();
+    lockBtn.style.display = 'none';
+    resetBtn.style.display = 'block';
+    hudState.textContent = 'locked — move phone to test stability';
+    hint.textContent = 'Now move the phone side to side and closer/further. Does the rectangle hold still on the real surface, or slide/resize?';
+  });
+  resetBtn.addEventListener('click', function () {
+    lockedMatrix = null;
+    lockBtn.style.display = 'block';
+    lockBtn.disabled = true;
+    resetBtn.style.display = 'none';
+    hudState.textContent = 'live — following aim';
+    hint.textContent = 'Point at a flat surface. When the outline appears and holds steady, tap "Lock reference here" below.';
+  });
+
+  async function startAR() {
+    errorBox.style.display = 'none';
+    const attempts = [];
+    try {
+      try {
+        session = await navigator.xr.requestSession('immersive-ar', {
+          requiredFeatures: ['hit-test'],
+          optionalFeatures: ['dom-overlay'],
+          domOverlay: { root: arOverlay }
+        });
+      } catch (e1) {
+        attempts.push('hit-test + dom-overlay: ' + (e1 && e1.message || e1));
+        session = await navigator.xr.requestSession('immersive-ar', {
+          requiredFeatures: ['hit-test']
+        });
+      }
+    } catch (e2) {
+      attempts.push('hit-test only: ' + (e2 && e2.message || e2));
+      errorBox.style.display = 'block';
+      errorBox.textContent = 'Could not start an AR session:\n' + attempts.join('\n');
+      return;
+    }
+
+    startScreen.style.display = 'none';
+    arOverlay.style.display = 'block';
+
+    session.addEventListener('end', onSessionEnd);
+
+    gl = document.createElement('canvas').getContext('webgl', { xrCompatible: true });
+    initGL();
+
+    await session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+
+    refSpace = await session.requestReferenceSpace('local');
+    viewerSpace = await session.requestReferenceSpace('viewer');
+    hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+
+    session.requestAnimationFrame(onXRFrame);
+  }
+
+  function onSessionEnd() {
+    arOverlay.style.display = 'none';
+    startScreen.style.display = 'flex';
+    lockBtn.style.display = 'block';
+    lockBtn.disabled = true;
+    resetBtn.style.display = 'none';
+    liveMatrix = null;
+    lockedMatrix = null;
+    hitTestSource = null;
+    session = null;
+  }
+
+  function initGL() {
+    const vsSrc = 'attribute vec3 aPos;\n' +
+      'uniform mat4 uMVP;\n' +
+      'void main() {\n' +
+      '  gl_Position = uMVP * vec4(aPos, 1.0);\n' +
+      '}\n';
+    const fsSrc = 'precision mediump float;\n' +
+      'uniform vec4 uColor;\n' +
+      'void main() {\n' +
+      '  gl_FragColor = uColor;\n' +
+      '}\n';
+
+    function compile(type, src) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      return s;
+    }
+    const vs = compile(gl.VERTEX_SHADER, vsSrc);
+    const fs = compile(gl.FRAGMENT_SHADER, fsSrc);
+    glProgram = gl.createProgram();
+    gl.attachShader(glProgram, vs);
+    gl.attachShader(glProgram, fs);
+    gl.linkProgram(glProgram);
+    aPosLoc = gl.getAttribLocation(glProgram, 'aPos');
+    uMVPLoc = gl.getUniformLocation(glProgram, 'uMVP');
+    uColorLoc = gl.getUniformLocation(glProgram, 'uColor');
+
+    // Filled quad (two triangles), card footprint in local XZ plane, Y=0.
+    fillBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, fillBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+      -hw, 0, -hd,   hw, 0, -hd,   hw, 0, hd,
+      -hw, 0, -hd,   hw, 0, hd,   -hw, 0, hd
+    ]), gl.STATIC_DRAW);
+
+    // Outline (line loop), same footprint.
+    outlineBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, outlineBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+      -hw, 0.001, -hd,   hw, 0.001, -hd,   hw, 0.001, hd,   -hw, 0.001, hd
+    ]), gl.STATIC_DRAW);
+
+    // Vertical pole marking the anchor point.
+    poleBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, poleBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+      0, 0, 0,   0, 0.06, 0
+    ]), gl.STATIC_DRAW);
+  }
+
+  function mat4Mul(a, b) {
+    const out = new Float32Array(16);
+    for (let c = 0; c < 4; c++) {
+      for (let r = 0; r < 4; r++) {
+        out[c * 4 + r] =
+          a[0 * 4 + r] * b[c * 4 + 0] +
+          a[1 * 4 + r] * b[c * 4 + 1] +
+          a[2 * 4 + r] * b[c * 4 + 2] +
+          a[3 * 4 + r] * b[c * 4 + 3];
+      }
+    }
+    return out;
+  }
+
+  function drawShape(buf, mode, count, mvp, color) {
+    gl.useProgram(glProgram);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.enableVertexAttribArray(aPosLoc);
+    gl.vertexAttribPointer(aPosLoc, 3, gl.FLOAT, false, 0, 0);
+    gl.uniformMatrix4fv(uMVPLoc, false, mvp);
+    gl.uniform4fv(uColorLoc, color);
+    gl.drawArrays(mode, 0, count);
+  }
+
+  function onXRFrame(t, frame) {
+    const sess = frame.session;
+    sess.requestAnimationFrame(onXRFrame);
+
+    const pose = frame.getViewerPose(refSpace);
+    hitFoundThisFrame = false;
+
+    if (hitTestSource && !lockedMatrix) {
+      const results = frame.getHitTestResults(hitTestSource);
+      if (results.length > 0) {
+        const hitPose = results[0].getPose(refSpace);
+        liveMatrix = hitPose.transform.matrix.slice();
+        hitFoundThisFrame = true;
+      } else {
+        liveMatrix = null;
+      }
+    }
+
+    const activeMatrix = lockedMatrix || liveMatrix;
+
+    // HUD updates
+    if (lockedMatrix) {
+      hudSurface.textContent = 'LOCKED';
+      hudSurface.className = 'v good';
+    } else if (hitFoundThisFrame) {
+      hudSurface.textContent = 'FOUND';
+      hudSurface.className = 'v good';
+      lockBtn.disabled = false;
+    } else {
+      hudSurface.textContent = 'SEARCHING…';
+      hudSurface.className = 'v warn';
+      lockBtn.disabled = true;
+    }
+
+    if (activeMatrix && pose && pose.views.length > 0) {
+      const camPos = pose.views[0].transform.position;
+      const dx = activeMatrix[12] - camPos.x;
+      const dy = activeMatrix[13] - camPos.y;
+      const dz = activeMatrix[14] - camPos.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      hudDistance.textContent = dist.toFixed(2) + ' m';
+      hudDistance.className = dist < 0.35 ? 'v bad' : (dist < 0.55 ? 'v warn' : 'v good');
+    } else {
+      hudDistance.textContent = '—';
+      hudDistance.className = 'v';
+    }
+
+    const glLayer = sess.renderState.baseLayer;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.enable(gl.DEPTH_TEST);
+
+    if (pose) {
+      for (const view of pose.views) {
+        const vp = glLayer.getViewport(view);
+        gl.viewport(vp.x, vp.y, vp.width, vp.height);
+
+        if (!activeMatrix) continue;
+
+        const viewMatrix = view.transform.inverse.matrix;
+        const proj = view.projectionMatrix;
+        const vm = mat4Mul(proj, viewMatrix);
+        const mvp = mat4Mul(vm, activeMatrix);
+
+        const fillColor = lockedMatrix ? [0.83, 0.55, 0.24, 0.30] : [0.42, 0.55, 0.68, 0.28];
+        const lineColor = lockedMatrix ? [0.97, 0.85, 0.55, 0.95] : [0.72, 0.85, 0.98, 0.9];
+
+        drawShape(fillBuf, gl.TRIANGLES, 6, mvp, fillColor);
+        drawShape(outlineBuf, gl.LINE_LOOP, 4, mvp, lineColor);
+        drawShape(poleBuf, gl.LINES, 2, mvp, lineColor);
+      }
+    }
+  }
+})();
+</script>
+</body>
+</html>
