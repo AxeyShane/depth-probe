@@ -223,26 +223,37 @@
   let session = null, gl = null, refSpace = null, viewerSpace = null, hitTestSource = null;
   let glProgram = null, aPosLoc = null, uMVPLoc = null, uColorLoc = null;
   let fillBuf = null, outlineBuf = null, poleBuf = null;
-  let liveMatrix = null;      // current hit-test result, updated every frame while unlocked
-  let lockedMatrix = null;    // frozen anchor once user taps Lock
+  let liveMatrix = null;        // this frame's hit-test result only (may be null on any given frame)
+  let lastHitMatrix = null;     // most recent hit, held briefly so single-frame dropouts don't matter
+  let lastHitTime = -Infinity;
+  let lockedMatrix = null;      // frozen anchor once user taps Lock
   let hitFoundThisFrame = false;
+  const GRACE_MS = 500;         // how long a stale hit is still considered "current"
 
   startBtn.addEventListener('click', startAR);
   endBtn.addEventListener('click', function () { if (session) session.end(); });
   lockBtn.addEventListener('click', function () {
-    if (!liveMatrix) return;
-    lockedMatrix = liveMatrix.slice();
+    if (!lastHitMatrix) {
+      hint.textContent = 'No surface locked on yet — keep the phone steady over a flat, plain area (a table works better than a patterned rug or glossy surface) and wait for SURFACE to say FOUND.';
+      hint.style.color = '#e3c26a';
+      return;
+    }
+    lockedMatrix = lastHitMatrix.slice();
     lockBtn.style.display = 'none';
     resetBtn.style.display = 'block';
     hudState.textContent = 'locked — move phone to test stability';
+    hint.style.color = '#f2e9d5';
     hint.textContent = 'Now move the phone side to side and closer/further. Does the rectangle hold still on the real surface, or slide/resize?';
   });
   resetBtn.addEventListener('click', function () {
     lockedMatrix = null;
+    lastHitMatrix = null;
+    lastHitTime = -Infinity;
     lockBtn.style.display = 'block';
     lockBtn.disabled = true;
     resetBtn.style.display = 'none';
     hudState.textContent = 'live — following aim';
+    hint.style.color = '#f2e9d5';
     hint.textContent = 'Point at a flat surface. When the outline appears and holds steady, tap "Lock reference here" below.';
   });
 
@@ -274,16 +285,23 @@
 
     session.addEventListener('end', onSessionEnd);
 
-    gl = document.createElement('canvas').getContext('webgl', { xrCompatible: true });
-    initGL();
+    try {
+      gl = document.createElement('canvas').getContext('webgl', { xrCompatible: true });
+      initGL();
 
-    await session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+      await session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
 
-    refSpace = await session.requestReferenceSpace('local');
-    viewerSpace = await session.requestReferenceSpace('viewer');
-    hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
+      refSpace = await session.requestReferenceSpace('local');
+      viewerSpace = await session.requestReferenceSpace('viewer');
+      hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
 
-    session.requestAnimationFrame(onXRFrame);
+      session.requestAnimationFrame(onXRFrame);
+    } catch (setupErr) {
+      hudSurface.textContent = 'SETUP ERROR';
+      hudSurface.className = 'v bad';
+      hint.style.color = '#e39a8a';
+      hint.textContent = 'Setup failed before the live loop even started: ' + (setupErr && setupErr.message || setupErr) + ' — screenshot this and send it over.';
+    }
   }
 
   function onSessionEnd() {
@@ -293,6 +311,8 @@
     lockBtn.disabled = true;
     resetBtn.style.display = 'none';
     liveMatrix = null;
+    lastHitMatrix = null;
+    lastHitTime = -Infinity;
     lockedMatrix = null;
     hitTestSource = null;
     session = null;
@@ -385,20 +405,26 @@
       if (results.length > 0) {
         const hitPose = results[0].getPose(refSpace);
         liveMatrix = hitPose.transform.matrix.slice();
+        lastHitMatrix = liveMatrix;
+        lastHitTime = t;
         hitFoundThisFrame = true;
       } else {
         liveMatrix = null;
       }
     }
 
-    const activeMatrix = lockedMatrix || liveMatrix;
+    // Treat a hit as "current" for a short grace window so single-frame
+    // dropouts (very common with ARCore hit-test) don't flicker the button
+    // disabled/enabled faster than a tap can land.
+    const hitIsRecent = (t - lastHitTime) < GRACE_MS;
+    const activeMatrix = lockedMatrix || (hitIsRecent ? lastHitMatrix : null);
 
     // HUD updates
     if (lockedMatrix) {
       hudSurface.textContent = 'LOCKED';
       hudSurface.className = 'v good';
-    } else if (hitFoundThisFrame) {
-      hudSurface.textContent = 'FOUND';
+    } else if (hitIsRecent) {
+      hudSurface.textContent = hitFoundThisFrame ? 'FOUND' : 'FOUND (holding)';
       hudSurface.className = 'v good';
       lockBtn.disabled = false;
     } else {
