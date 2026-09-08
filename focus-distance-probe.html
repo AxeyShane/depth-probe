@@ -1,0 +1,256 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Focus Distance Probe</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 12px; background: #0b0f14; color: #e6edf3;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px; line-height: 1.4;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { color: #8b98a5; margin: 0 0 14px; }
+  video { width: 100%; max-height: 40vh; background: #000; border-radius: 8px; }
+  button {
+    background: #1f6feb; color: #fff; border: none; border-radius: 6px;
+    padding: 10px 14px; font-size: 14px; margin: 4px 4px 4px 0; cursor: pointer;
+  }
+  button:disabled { background: #30363d; color: #6e7681; }
+  button.secondary { background: #21262d; border: 1px solid #30363d; }
+  .panel {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 10px 12px; margin-top: 10px;
+  }
+  .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid #21262d; }
+  .row:last-child { border-bottom: none; }
+  .label { color: #8b98a5; }
+  .val { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; }
+  .ok { color: #3fb950; }
+  .bad { color: #f85149; }
+  .warn { color: #d29922; }
+  #liveReadout { font-size: 28px; font-family: ui-monospace, monospace; text-align: center; padding: 14px; }
+  #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 12px; max-height: 200px; overflow-y: auto; }
+  .hint { color: #8b98a5; font-size: 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+  <h1>Focus Distance Probe</h1>
+  <p class="sub">Tests whether this phone/browser exposes the camera's autofocus lens-position distance -- a signal source independent of ARCore depth-sensing and hit-test, which have already been shown unreliable at macro range.</p>
+
+  <video id="preview" autoplay playsinline muted></video>
+  <div>
+    <button id="startBtn">Start camera</button>
+    <button id="stopBtn" class="secondary" disabled>Stop</button>
+  </div>
+
+  <div class="panel">
+    <div class="row"><span class="label">Device / browser</span><span class="val" id="deviceInfo">--</span></div>
+    <div class="row"><span class="label">getUserMedia</span><span class="val" id="gumSupport">--</span></div>
+    <div class="row"><span class="label">ImageCapture API</span><span class="val" id="icSupport">--</span></div>
+    <div class="row"><span class="label">track.getCapabilities().focusDistance</span><span class="val" id="capFocusDist">--</span></div>
+    <div class="row"><span class="label">ImageCapture photoCapabilities.focusDistance</span><span class="val" id="photoCapFocusDist">--</span></div>
+    <div class="row"><span class="label">focusMode options</span><span class="val" id="focusModes">--</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="hint">Live focus distance reading (from track.getSettings(), polled 5x/sec). Point the camera at something ~5cm away, then ~20cm, then ~1m+ away and watch this number.</div>
+    <div id="liveReadout">--</div>
+  </div>
+
+  <div class="panel">
+    <div class="hint">Manual-focus test: if the browser lets us set focusDistance directly (not just read it), tap these while pointed at a nearby object and watch whether the image actually refocuses.</div>
+    <button id="focusMinBtn" class="secondary" disabled>Set focus: near</button>
+    <button id="focusMidBtn" class="secondary" disabled>Set focus: mid</button>
+    <button id="focusMaxBtn" class="secondary" disabled>Set focus: far</button>
+    <button id="focusAutoBtn" class="secondary" disabled>Back to auto</button>
+    <div class="hint" id="manualFocusResult"></div>
+  </div>
+
+  <div class="panel">
+    <div class="label" style="margin-bottom:6px;">Log</div>
+    <div id="log"></div>
+  </div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const logEl = $('log');
+  function log(msg) {
+    const t = new Date().toLocaleTimeString();
+    logEl.textContent += `[${t}] ${msg}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  let stream = null;
+  let track = null;
+  let imageCapture = null;
+  let pollTimer = null;
+
+  async function describeDevice() {
+    try {
+      if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+        const ua = await navigator.userAgentData.getHighEntropyValues(['model', 'platform', 'platformVersion', 'fullVersionList']);
+        const browser = (ua.fullVersionList || []).map(b => `${b.brand} ${b.version}`).join(', ');
+        $('deviceInfo').textContent = `${ua.model || 'unknown model'} / ${ua.platform} ${ua.platformVersion} / ${browser}`;
+      } else {
+        $('deviceInfo').textContent = navigator.userAgent;
+      }
+    } catch (e) {
+      $('deviceInfo').textContent = navigator.userAgent;
+      log('Client Hints unavailable: ' + e.message);
+    }
+  }
+
+  function setStatus(el, ok, text) {
+    el.textContent = text;
+    el.className = 'val ' + (ok === true ? 'ok' : ok === false ? 'bad' : 'warn');
+  }
+
+  async function start() {
+    $('startBtn').disabled = true;
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus($('gumSupport'), false, 'not supported');
+        log('getUserMedia not supported in this browser.');
+        return;
+      }
+      setStatus($('gumSupport'), true, 'supported');
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      $('preview').srcObject = stream;
+      track = stream.getVideoTracks()[0];
+      log('Camera started: ' + (track.label || 'unnamed track'));
+
+      // --- track.getCapabilities() / getSettings() ---
+      let caps = {};
+      try {
+        caps = track.getCapabilities ? track.getCapabilities() : {};
+        log('track.getCapabilities() keys: ' + Object.keys(caps).join(', '));
+      } catch (e) {
+        log('track.getCapabilities() threw: ' + e.message);
+      }
+      if ('focusDistance' in caps) {
+        setStatus($('capFocusDist'), true, `min=${caps.focusDistance.min}, max=${caps.focusDistance.max}, step=${caps.focusDistance.step}`);
+      } else {
+        setStatus($('capFocusDist'), false, 'not exposed');
+      }
+      if ('focusMode' in caps) {
+        $('focusModes').textContent = JSON.stringify(caps.focusMode);
+      } else {
+        $('focusModes').textContent = 'not exposed';
+      }
+
+      // --- ImageCapture API ---
+      if ('ImageCapture' in window) {
+        setStatus($('icSupport'), true, 'supported');
+        try {
+          imageCapture = new ImageCapture(track);
+          const photoCaps = await imageCapture.getPhotoCapabilities();
+          log('ImageCapture photoCapabilities keys: ' + Object.keys(photoCaps).join(', '));
+          if (photoCaps.focusDistance) {
+            setStatus($('photoCapFocusDist'), true,
+              `min=${photoCaps.focusDistance.min}, max=${photoCaps.focusDistance.max}, step=${photoCaps.focusDistance.step}`);
+          } else {
+            setStatus($('photoCapFocusDist'), false, 'not exposed');
+          }
+        } catch (e) {
+          setStatus($('photoCapFocusDist'), false, 'error: ' + e.message);
+          log('getPhotoCapabilities() threw: ' + e.message);
+        }
+      } else {
+        setStatus($('icSupport'), false, 'not supported');
+        setStatus($('photoCapFocusDist'), false, 'ImageCapture unavailable');
+      }
+
+      // enable manual focus buttons only if the capability is really there
+      const canManualFocus = 'focusDistance' in caps && caps.focusMode && caps.focusMode.includes('manual');
+      $('focusMinBtn').disabled = !canManualFocus;
+      $('focusMidBtn').disabled = !canManualFocus;
+      $('focusMaxBtn').disabled = !canManualFocus;
+      $('focusAutoBtn').disabled = !(caps.focusMode && caps.focusMode.includes('continuous'));
+      if (!canManualFocus) {
+        $('manualFocusResult').textContent = 'Manual focus control not available on this device/browser.';
+      }
+
+      $('stopBtn').disabled = false;
+      pollTimer = setInterval(pollLiveFocus, 200);
+    } catch (e) {
+      log('Failed to start camera: ' + e.message);
+      $('startBtn').disabled = false;
+    }
+  }
+
+  function pollLiveFocus() {
+    if (!track) return;
+    try {
+      const settings = track.getSettings ? track.getSettings() : {};
+      if ('focusDistance' in settings) {
+        $('liveReadout').textContent = settings.focusDistance.toFixed(4) + ' (units per spec: dioptres or normalized, device-dependent)';
+      } else {
+        $('liveReadout').textContent = 'focusDistance not in getSettings()';
+      }
+    } catch (e) {
+      $('liveReadout').textContent = 'error reading settings: ' + e.message;
+    }
+  }
+
+  async function setFocus(value) {
+    if (!track) return;
+    try {
+      await track.applyConstraints({ advanced: [{ focusMode: 'manual', focusDistance: value }] });
+      log(`applyConstraints(focusDistance=${value}) succeeded`);
+      $('manualFocusResult').textContent = `Set focusDistance to ${value}. Check the preview: did it visibly refocus?`;
+    } catch (e) {
+      log(`applyConstraints(focusDistance=${value}) failed: ${e.message}`);
+      $('manualFocusResult').textContent = 'applyConstraints failed: ' + e.message;
+    }
+  }
+
+  $('focusMinBtn').addEventListener('click', () => {
+    const caps = track.getCapabilities();
+    setFocus(caps.focusDistance.min);
+  });
+  $('focusMidBtn').addEventListener('click', () => {
+    const caps = track.getCapabilities();
+    setFocus((caps.focusDistance.min + caps.focusDistance.max) / 2);
+  });
+  $('focusMaxBtn').addEventListener('click', () => {
+    const caps = track.getCapabilities();
+    setFocus(caps.focusDistance.max);
+  });
+  $('focusAutoBtn').addEventListener('click', async () => {
+    try {
+      await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      log('Switched back to continuous autofocus');
+    } catch (e) {
+      log('Failed to switch back to auto: ' + e.message);
+    }
+  });
+
+  function stop() {
+    if (pollTimer) clearInterval(pollTimer);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null; track = null; imageCapture = null;
+    $('startBtn').disabled = false;
+    $('stopBtn').disabled = true;
+    $('focusMinBtn').disabled = true;
+    $('focusMidBtn').disabled = true;
+    $('focusMaxBtn').disabled = true;
+    $('focusAutoBtn').disabled = true;
+    log('Camera stopped.');
+  }
+
+  $('startBtn').addEventListener('click', start);
+  $('stopBtn').addEventListener('click', stop);
+
+  describeDevice();
+  log('Ready. Tap "Start camera" and grant permission.');
+})();
+</script>
+</body>
+</html>
